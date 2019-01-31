@@ -1,0 +1,134 @@
+#!/usr/bin/python3 -B
+
+"""
+Crops & scales a raw Bayer image.
+"""
+
+from __future__ import print_function as __print
+
+import sys                     # built-in library
+import time                    # built-in library
+import re                      # built-in library
+import signal                  # built-in library
+import numpy as np             # pip install numpy
+import imgio                   # pip install imgio
+import argv                    # local import: argv.py
+import multiproc               # local import: multiproc.py
+
+class TerminationRequest(IOError):
+    pass
+
+def _on_exit():
+    raise TerminationRequest("Terminated by the user.")
+
+def _enforce(expression, message_if_false):
+    if not expression:
+        print(message_if_false)
+        sys.exit(-1)
+
+def _process(infilename, outfilename, cropw, croph, scale, imgw, imgh, bpp, verbose=False):
+    t0 = time.time()
+    image, maxval = imgio.imread(infilename, imgw, imgh, bpp, verbose)
+    h, w = image.shape[:2]
+    _enforce(cropw <= w and croph <= h, "Cannot crop {} x {} pixels from a {} x {} image.".format(cropw, croph, w, h))
+    ulx = int((w - cropw) / 2)
+    uly = int((h - croph) / 2)
+    lrx = ulx + cropw
+    lry = uly + croph
+    crop = image[uly:lry, ulx:lrx]
+    skip = scale * 2
+    c0 = crop[0::skip, 0::skip]
+    c1 = crop[0::skip, 1::skip]
+    c2 = crop[1::skip, 0::skip]
+    c3 = crop[1::skip, 1::skip]
+    scaleh, scalew = np.array(c0.shape) * 2
+    scaled_crop = np.zeros((scaleh, scalew), dtype=c0.dtype)
+    scaled_crop[0::2, 0::2] = c0
+    scaled_crop[0::2, 1::2] = c1
+    scaled_crop[1::2, 0::2] = c2
+    scaled_crop[1::2, 1::2] = c3
+    imgio.imwrite(outfilename, scaled_crop, maxval, verbose=verbose)
+    elapsed = time.time() - t0
+    print("Cropped & scaled %s from %d x %d to %d x %d, wrote %s, took %.3f sec."%(infilename, w, h, scalew, scaleh, outfilename, elapsed))
+
+def _main():
+    cropw, croph = argv.intpair("--crop", default=(1920, 1080))
+    imgw, imgh = argv.intpair("--size", default=(None, None))
+    bpp = argv.intval("--bpp", default=None, condition='8 <= v <= 16')
+    scale = argv.intval("--downscale", default=1, condition='v >= 1')
+    verbose = argv.exists("--verbose")
+    show_help = argv.exists("--help")
+    argv.exitIfAnyUnparsedOptions()
+
+    roundup = lambda x: int(np.ceil(x / 4.0) * 4)
+    scalew = cropw // scale
+    scaleh = croph // scale
+    _enforce(roundup(cropw) == cropw, "Crop region width must be a multiple of 4; was {}.".format(cropw))
+    _enforce(roundup(croph) == croph, "Crop region height must be a multiple of 4; was {}.".format(croph))
+    _enforce(roundup(scalew) == scalew, "Crop region width after downscaling must be a multiple of 4; was {}.".format(scalew))
+    _enforce(roundup(scaleh) == scaleh, "Crop region height after downscaling must be a multiple of 4; was {}.".format(scaleh))
+
+    if len(sys.argv) < 2 or show_help:
+        print("Usage: rawcrop [options] filename ...")
+        print()
+        print("  options:")
+        print("    --crop W H              crop region size in pixels; default = 1920 x 1080")
+        print("    --size W H              input image size in pixels (.RAW only); default = None")
+        print("    --bpp N                 input image bits per pixel (.RAW only); default = None")
+        print("    --downscale N           downscale the crop region by an integer factor; default = 1")
+        print("    --verbose               print extra progress information for diagnostics")
+        print("    --help                  show this help message")
+        print()
+        print("  examples:")
+        print("    rawcrop --size 4608 3456 --bpp 12 *.raw")
+        print("    rawcrop --crop 2304 1728 --downscale 2 *.pgm")
+        print()
+        print("  Crops a rectangular region from the center of the given raw Bayer image, and")
+        print("  optionally scales it down by picking every Nth column & row. The size of the")
+        print("  crop region before and after scaling must be an integer multiple of 4, both")
+        print("  horizontally and vertically.")
+        print()
+        sys.exit(-1)
+
+    filenames, basenames = argv.filenames(sys.argv[1:], [".pgm", ".png", ".raw"], sort=True)
+    extensions = [name.replace(base, "") for name, base in zip(filenames, basenames)]
+    nfiles = len(filenames)
+    _enforce(nfiles > 0, "No valid raw Bayer PGM/PNG/RAW files to process. Terminating.")
+
+    # Generate output filenames from input filenames and crop resolution:
+    #   foobar_4000x3000.pgm ==> foobar_2000x1500.pgm
+    #   foobar.pgm ==> foobar.crop_2000x1500.pgm
+    #
+    outfilenames = []
+    for base, ext in zip(basenames, extensions):
+        new_size_str = "_{}x{}".format(scalew, scaleh)
+        new_basename = re.sub(r"_([0-9]{4})x([0-9]{4})", new_size_str, base)
+        if (base == new_basename):
+            new_basename = "{}.crop{}".format(base, new_size_str)
+        outfilename = new_basename + ext
+        outfilenames.append(outfilename)
+
+    args = [(infile, outfile, cropw, croph, scale, imgw, imgh, bpp, verbose) for infile, outfile in zip(filenames, outfilenames)]
+    signal.signal(signal.SIGINT, lambda s, f: _on_exit())  # Ctrl+C handler
+    ncpu = multiproc.cpu_count()
+    nproc = max(1, int(ncpu - 1))
+    if nfiles > 1:
+        print("Processing %d image(s) using up to %d concurrent processes..."%(nfiles, nproc))
+    try:
+        t0 = time.time()
+        multiproc.run(_process, args, nproc, raise_exceptions=False, print_exceptions=verbose)
+        elapsed = time.time() - t0
+        ms_per_file = float(elapsed) / nfiles * 1000
+        if nfiles > 1:
+            print("Processed %d files in %.1f seconds (%d ms per file)"%(nfiles, elapsed, ms_per_file))
+    except BaseException as e:
+        if verbose:
+            print("=" * 80)
+            import traceback
+            traceback.print_exc()
+            print("=" * 80)
+    finally:
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+if __name__ == "__main__":
+    _main()
