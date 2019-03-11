@@ -1,0 +1,9 @@
+#!/bin/bash
+
+for FILESPEC in "$@"; do
+    FILENAME=${FILESPEC##*/}       # "path/to/image.raw" => "image.raw"
+    BASENAME=${FILENAME%%.*}       # "image.raw" => "image"
+    OUTNAME=${BASENAME}.pgm        # "image" => "image.pgm"
+    echo "Converting $FILESPEC to $OUTNAME..."
+    rawtopgm -bpp 2 -maxval 4095 -littleendian 4608 3456 $FILESPEC >$OUTNAME
+done
