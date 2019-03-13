@@ -25,6 +25,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+# Example:
+# python3 cameracalc.py -v IMG_16M 1/2.3_INCH 3.8 2.4 100 IMG_UHD4K 1500 Test
+
 """
 import sys                          # built-in module
 import math                         # built-in module
@@ -34,7 +38,7 @@ import matplotlib.lines as ln       # pip install matplotlib
 import argparse                     # pip install argparse
 
 ################### Configuration section START
-PROGRAM_VERSION = '0.50'            # Script version
+PROGRAM_VERSION = '0.51'            # Script version
 KELL_FACTOR = 0.8                   # Bandwidth limitation parameter of a sampled image
 SENSOR_35MM_DIAGONAL = 43.27        # Diagonal of full-frame (35mm) sensor, mm
 LENS_VALUE_AT_FAR = 300             # Lens position value at FAR
@@ -49,6 +53,7 @@ IMAGE_FORMAT = {
     'IMG_4M':       [2592, 1520],
     'IMG_5M':       [2592, 1944],
     'IMG_6M':       [3072, 2160],
+    'IMG_8M':       [3264, 2448],
     'IMG_3Kx3K':    [3000, 3000],
     'IMG_10K':      [3648, 2736],
     'IMG_UHD4K':    [3840, 2160],
@@ -58,11 +63,18 @@ IMAGE_FORMAT = {
 }
 
 SENSOR_SIZE = {
-    '1/3_INCH':     [4.8, 3.6],     # [width, height] # Effective size, mm
+    '1/3.6_INCH':   [4.0, 3.0],     # [width, height] # Effective size, mm
+    '1/3.2_INCH':   [4.54, 3.42],
+    '1/3_INCH':     [4.8, 3.6],
     '1/2.9_INCH':   [5.04, 3.77],
-    '1/2.5_INCH':   [5.8, 4.3],
+    '1/2.7_INCH':   [5.37, 4.29],
+    '1/2.5_INCH':   [5.76, 4.29],
+    '1/2.4_INCH':   [5.92, 4.57],
     '1/2.3_INCH':   [6.16, 4.62],
-    '2/3_INCH':     [6.16, 4.62],
+    '1/2_INCH':     [6.4, 4.8],
+    '1/1.8_INCH':   [7.18, 5.32],
+    '2/3_INCH':     [8.8, 6.6],
+    '1_INCH':       [12.8, 9.6],
     'M4/3':         [17.3, 13.0],
     'APS-C':        [22.2, 14.8],
     'FULL_FRAME':   [36.0, 24.0],
@@ -116,7 +128,7 @@ class Calculation(object):
         return 1.0 / nyquist_limit
 
     def get_sensor_crop_size(self, crop_factor_h, crop_factor_v):
-        crop_width_mm = self.cfgs.sensor_size[WIDTH_INDX] / crop_factor_h 
+        crop_width_mm = self.cfgs.sensor_size[WIDTH_INDX] / crop_factor_h
         crop_height_mm = self.cfgs.sensor_size[HEIGHT_INDX] / crop_factor_v
         crop_diag_mm = math.sqrt(crop_width_mm**2 + crop_height_mm**2)
         return (crop_width_mm, crop_height_mm, crop_diag_mm)
@@ -124,7 +136,7 @@ class Calculation(object):
     def get_sensor_crop_factor(self):
         hor_crop_factor = \
             self.cfgs.resolution[WIDTH_INDX] / self.cfgs.crop_resolution[WIDTH_INDX]
-    
+
         ver_crop_factor = \
             self.cfgs.resolution[HEIGHT_INDX] / self.cfgs.crop_resolution[HEIGHT_INDX]
 
@@ -137,10 +149,10 @@ class Calculation(object):
     def get_angles_of_view_effective(self):
         hor_aov_eff = \
             np.rad2deg((2 * (math.atan(self.cfgs.sensor_size[WIDTH_INDX] / (2 * self.cfgs.focal_len)))))
-        
+
         ver_aov_eff = \
             np.rad2deg((2 * (math.atan(self.cfgs.sensor_size[HEIGHT_INDX] / (2 * self.cfgs.focal_len)))))
-        
+
         sensor_diag = math.sqrt(self.cfgs.sensor_size[WIDTH_INDX]**2 + self.cfgs.sensor_size[HEIGHT_INDX]**2)
         dia_aov_eff = \
             np.rad2deg((2 * (math.atan(sensor_diag / (2 * self.cfgs.focal_len)))))
@@ -150,7 +162,7 @@ class Calculation(object):
     def get_angles_of_view_cropped(self, h_crop_factor, v_crop_factor):
         sensor_width_crop_mm = self.cfgs.sensor_size[WIDTH_INDX] / h_crop_factor
         sensor_height_crop_mm = self.cfgs.sensor_size[HEIGHT_INDX] / v_crop_factor
-        sensor_diag_crop_mm = math.sqrt(sensor_width_crop_mm**2 + sensor_height_crop_mm**2) 
+        sensor_diag_crop_mm = math.sqrt(sensor_width_crop_mm**2 + sensor_height_crop_mm**2)
         hor_aov_cr = \
             np.rad2deg((2 * (math.atan(sensor_width_crop_mm / (2 * self.cfgs.focal_len)))))
 
@@ -159,17 +171,17 @@ class Calculation(object):
 
         diag_aov_cr = \
             np.rad2deg((2 * (math.atan(sensor_diag_crop_mm / (2 * self.cfgs.focal_len)))))
-        return (hor_aov_cr, ver_aov_cr, diag_aov_cr) 
+        return (hor_aov_cr, ver_aov_cr, diag_aov_cr)
 
     def get_hyperfocal(self, c_of_c_mm):
         flen = self.cfgs.focal_len
         fnum = self.cfgs.fnumber
         hyp_dist = flen + (flen**2) / (fnum * c_of_c_mm)
-        return hyp_dist 
+        return hyp_dist
 
     def get_near_dof_at_hyperfocal(self, hyperfocal):
         odof_n_hyp = round((hyperfocal**2) / (hyperfocal * 2))
-        return odof_n_hyp 
+        return odof_n_hyp
 
     def get_main_image_distances(self, hyperfocal):
         flen = self.cfgs.focal_len
@@ -178,14 +190,14 @@ class Calculation(object):
         id_1_meter = 1.0 / (1.0 / flen - 1.0 / 1000)
         id_macro = 1.0 / (1.0 / flen - 1.0 / self.cfgs.object_distance_near_mm)
         return (id_inf, id_hyp, id_1_meter, id_macro)
-        
+
     def get_lens_position(self, object_distance):
         flen = self.cfgs.focal_len
         image_distance = 1.0 / (1.0 / flen - 1.0 / object_distance)
         x1 = 1.0 / (1.0 / flen - 1.0 / self.cfgs.object_distance_far_mm)
         y1 = self.cfgs.lens_value_far
         x0 = 1.0 / (1.0 / flen - 1.0 / self.cfgs.object_distance_near_mm)
-        y0 = self.cfgs.lens_value_near   
+        y0 = self.cfgs.lens_value_near
         lens_pos = int(0.5 + (y0 + (image_distance - x0)*(y1 - y0) / (x1 - x0)))
         return lens_pos
 
@@ -221,11 +233,11 @@ class Calculation(object):
         if(self.cfgs.min_focus_distance <= 200):
             self.i_d_20cm = 1.0 / (1.0 / flen - 1.0 / 200)
             cm20l = int(0.5 + (y0 + (self.i_d_20cm - x0)*(y1 - y0) / (x1 - x0)))
-        
+
         if(self.cfgs.min_focus_distance <= 400):
             self.i_d_40cm = 1.0 / (1.0 / flen - 1.0 / 400)
             cm40l = int(0.5 + (y0 + (self.i_d_40cm - x0)*(y1 - y0) / (x1 - x0)))
-            
+
         # Calculate DOF arrays
         od = np.array([0])
         id = np.array([0])
@@ -247,7 +259,7 @@ class Calculation(object):
         id = np.delete(id, 0)
         idof_n = np.delete(idof_n, 0)
         idof_f = np.delete(idof_f, 0)
-        return (infl,hypl,cm200l,cm150l,cm120l,cm100l,cm70l,cm50l,cm40l,cm20l,cm10l,od,id,idof_n,idof_f) 
+        return (infl,hypl,cm200l,cm150l,cm120l,cm100l,cm70l,cm50l,cm40l,cm20l,cm10l,od,id,idof_n,idof_f)
 
 
 class Plots(object):
@@ -256,11 +268,11 @@ class Plots(object):
         self.calcs = calc
         self.fig_full_x = fig_full_w_pixels
         self.fig_full_y = self.fig_full_x * cfg.resolution[HEIGHT_INDX] / cfg.resolution[WIDTH_INDX]
-        self.fig_crop_x = self.fig_full_x * cfg.crop_resolution[WIDTH_INDX] / cfg.resolution[WIDTH_INDX] 
+        self.fig_crop_x = self.fig_full_x * cfg.crop_resolution[WIDTH_INDX] / cfg.resolution[WIDTH_INDX]
         self.fig_crop_y = self.fig_full_y * cfg.crop_resolution[HEIGHT_INDX] / cfg.resolution[HEIGHT_INDX]
         self.crop_off_x = (self.fig_full_x - self.fig_crop_x) / 2
         self.crop_off_y = (self.fig_full_y - self.fig_crop_y) / 2
-        
+
     def draw_crops(self):
         pp.figure('Sensor resolutions (%s)' % self.cfgs.fig_caption)
         full_rect = pp.Rectangle((0, 0), self.fig_full_x, self.fig_full_y, edgecolor = 'b', fill = None)
@@ -285,14 +297,14 @@ class Plots(object):
         f2 = pp.figure('Depth-of-field curves (%s)' % self.cfgs.fig_caption)
         pp.plot(id, od, label = 'Focus')
         pp.plot(idofn, od, label = 'Far DOF')
-        pp.plot(idoff, od, label = 'Near DOF')           
+        pp.plot(idoff, od, label = 'Near DOF')
         pp.grid(b = True, which = 'both', linestyle = '-')
-        pp.xlabel('Image distance, mm')   
+        pp.xlabel('Image distance, mm')
         pp.ylabel('Object distance, mm')
         nextPosY = 0
         nextPosYstep = 60
         font_size = 'x-small'
-        
+
         if (self.calcs.i_d_10cm != -1):
             od = 100
             odof_f_10cm = int(((hyper * od)/(hyper - od)) + 0.5)
@@ -300,7 +312,7 @@ class Plots(object):
             pp.gca().add_line(line10cm)
             lens_pos = self.calcs.get_lens_position(od)
             pp.text(self.calcs.i_d_10cm, odof_f_10cm + 5, '10cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-            
+
         if (self.calcs.i_d_20cm != -1):
             od = 200
             odof_f_20cm = int(((hyper * od)/(hyper - od)) + 0.5)
@@ -308,7 +320,7 @@ class Plots(object):
             pp.gca().add_line(line20cm)
             lens_pos = self.calcs.get_lens_position(od)
             pp.text(self.calcs.i_d_20cm, odof_f_20cm + 5, '20cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-            
+
         if (self.calcs.i_d_40cm != -1):
             od = 400
             odof_f_40cm = int(((hyper * od)/(hyper - od)) + 0.5)
@@ -316,47 +328,47 @@ class Plots(object):
             pp.gca().add_line(line40cm)
             lens_pos = self.calcs.get_lens_position(od)
             pp.text(self.calcs.i_d_40cm, odof_f_40cm + 5, '40cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-       
+
         od = 500
         odof_f_50cm = int(((hyper * od)/(hyper - od)) + 0.5)
         line50cm = ln.Line2D([self.calcs.i_d_50cm, self.calcs.i_d_50cm], [0, odof_f_50cm], lw = 1, color = 'cyan')
         pp.gca().add_line(line50cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_50cm, odof_f_50cm + 5, '50cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
-        od = 700        
+
+        od = 700
         odof_f_70cm = int(((hyper * od)/(hyper - od)) + 0.5)
         if (odof_f_70cm > self.cfgs.max_object_distance):
             odof_f_70cm = self.cfgs.max_object_distance - 5
             nextPosY += nextPosYstep
- 
+
         line70cm = ln.Line2D([self.calcs.i_d_70cm, self.calcs.i_d_70cm], [0, odof_f_70cm - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(line70cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_70cm, odof_f_70cm + 5 - nextPosY, '70cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = 1000
         odof_f_100cm = int(((hyper * od)/(hyper - od)) + 0.5)
         if (odof_f_100cm > self.cfgs.max_object_distance):
             odof_f_100cm = self.cfgs.max_object_distance - 5
             nextPosY += nextPosYstep
- 
+
         line100cm = ln.Line2D([self.calcs.i_d_100cm, self.calcs.i_d_100cm], [0, odof_f_100cm - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(line100cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_100cm, odof_f_100cm + 5 - nextPosY, '100cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = 1200
         odof_f_120cm = int(((hyper * od)/(hyper - od)) + 0.5)
         if (odof_f_120cm > self.cfgs.max_object_distance):
             odof_f_120cm = self.cfgs.max_object_distance - 5
             nextPosY += nextPosYstep
- 
+
         line120cm = ln.Line2D([self.calcs.i_d_120cm, self.calcs.i_d_120cm], [0, odof_f_120cm - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(line120cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_120cm, odof_f_120cm + 5 - nextPosY, '120cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = 1500
         if (od < hyper):
             odof_f_150cm = int(((hyper * od)/(hyper - od)) + 0.5)
@@ -366,38 +378,38 @@ class Plots(object):
         if (odof_f_150cm > self.cfgs.max_object_distance):
             odof_f_150cm = self.cfgs.max_object_distance - 5
             nextPosY += nextPosYstep
- 
+
         line150cm = ln.Line2D([self.calcs.i_d_150cm, self.calcs.i_d_150cm], [0, odof_f_150cm - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(line150cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_150cm, odof_f_150cm + 5 - nextPosY, '150cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = 2000
         if (od < hyper):
             odof_f_200cm = int(((hyper * od)/(hyper - od)) + 0.5)
         else:
             odof_f_200cm = 65536
-        
+
         if (odof_f_200cm > self.cfgs.max_object_distance):
             odof_f_200cm = self.cfgs.max_object_distance - 5
             nextPosY += nextPosYstep
- 
+
         line200cm = ln.Line2D([self.calcs.i_d_200cm, self.calcs.i_d_200cm], [0, odof_f_200cm - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(line200cm)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_200cm, odof_f_200cm + 5 - nextPosY, '200cm LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = hyper
         odof_f_hyp = self.cfgs.max_object_distance - 5
-        nextPosY += nextPosYstep 
+        nextPosY += nextPosYstep
         lineHyper = ln.Line2D([self.calcs.i_d_hyp, self.calcs.i_d_hyp], [0, odof_f_hyp - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(lineHyper)
         lens_pos = self.calcs.get_lens_position(od)
         pp.text(self.calcs.i_d_hyp, odof_f_hyp + 5 - nextPosY, 'HYPER LP: %d' % lens_pos, fontsize = font_size, color = 'r')
-        
+
         od = 65535
         odof_f_inf = self.cfgs.max_object_distance - 5
-        nextPosY += nextPosYstep 
+        nextPosY += nextPosYstep
         lineInf = ln.Line2D([self.calcs.i_d_inf, self.calcs.i_d_inf], [0, odof_f_inf - nextPosY], lw = 1, color = 'cyan')
         pp.gca().add_line(lineInf)
         lens_pos = self.calcs.get_lens_position(od)
@@ -423,30 +435,28 @@ def msg(name = None):
     return out_str
 
 
-# Example:
-# python3 cameracalc.py -v IMG_16M 1/2.3_INCH 3.8 2.4 100 IMG_UHD4K 1500 Test
 def main():
     print('Camera Calculator, ver %s\n' % PROGRAM_VERSION)
     parser = argparse.ArgumentParser(usage = msg())
-    parser.add_argument('Res', 
+    parser.add_argument('Res',
         help = 'effective resolution of the sensor, (e.g. IMG_12M)')
 
-    parser.add_argument('Size', 
+    parser.add_argument('Size',
         help = 'size of sensor\'s effective area, mm (e.g. 1/2.3_INCH)')
 
-    parser.add_argument('FLen', 
+    parser.add_argument('FLen',
         help = 'lens focal length, mm')
 
-    parser.add_argument('FNum', 
+    parser.add_argument('FNum',
         help = 'lens aperture, F-number')
 
-    parser.add_argument('MinFDist', 
+    parser.add_argument('MinFDist',
         help = 'minimum focusing distance, lens is capable to focus, mm')
 
-    parser.add_argument('Crop', 
+    parser.add_argument('Crop',
         help = 'target crop from native sensor resolution, (e.g. IMG_UHD4K)')
 
-    parser.add_argument('MaxObDist', 
+    parser.add_argument('MaxObDist',
         help = 'maximum object distance for the Lens DOF figure, mm')
 
     parser.add_argument('Caption',
@@ -517,7 +527,7 @@ def main():
     print('Sampling frequency, px/mm: %.2f' % round(sampl_freq_px_per_mm, 2))
     print('Sensor Nyquist limit, lp/mm: %.2f (kell factor: %.1f)' % \
         (round(nyquist_limit_lp_per_mm, 2), config.kell_factor))
-    
+
     print('Circle of confusion, mm: %.4f' % round(c_o_c_mm, 4))
     print('%s horizontal crop-factor: %.2f' % \
         (args.Crop, round(hor_crop_factor, 2)))
@@ -562,14 +572,14 @@ def main():
     print('Lens value at 40cm: %.d' % l40cm)
     print('Lens value at 20cm: %.d' % l20cm)
     print('Lens value at 10cm: %.d' % l10cm)
-    
+
     # Create plot object
     figures = Plots(config, calc, 200)
-    
+
     figures.draw_crops()
     figures.draw_dof_curves(o_d, i_d, idof_n, idof_f, hyperfocal)
     figures.show_figures()
-    print('OK')    
-    
+    print('OK')
+
 if __name__ == '__main__':
     main()
