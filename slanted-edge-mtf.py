@@ -61,8 +61,8 @@ class MTFResults(object):
             print("Results for {} region:".format(self.corner))
             print("  Edge angle: {:.1f} degrees".format(self.edge_angle))
             print("  Edge height: {} pixels".format(self.edge_yspan))
-            print("  MTF50: {:.3f} cycles/pixel".format(self.mtf50))
-            print("  MTF20: {:.3f} cycles/pixel".format(self.mtf20))
+            print("  MTF50: {:.3f} cycles/pixel = {:.1f} pixels/cycle".format(self.mtf50, 1.0 / self.mtf50))
+            print("  MTF20: {:.3f} cycles/pixel = {:.1f} pixels/cycle".format(self.mtf20, 1.0 / self.mtf20))
         else:
             print("-" * 60)
             print("MTF calculation for {} region failed.".format(self.corner))
@@ -177,7 +177,7 @@ def mtf(config, results, filename):
 
     for idx, res in enumerate(results):
         if res.success:
-            label = "{}: MTF50 = {:.3f} cycles/pixel".format(res.corner, res.mtf50)
+            label = "{}: MTF50 = {:.3f} cycles/pixel = {:.1f} pixels/cycle".format(res.corner, res.mtf50, 1.0 / res.mtf50)
             plot_mtf(res.mtfs, res.mtf50, res.mtf20, label=label, color=pp.cm.cool(idx / 4))
             if DEBUG:  # plot the unfiltered MTF only in debug mode
                 plot_mtf(res.mtf, res.mtf50, res.mtf20, color=pp.cm.cool(idx / 4), linestyle=":", linewidth=0.5)
@@ -372,7 +372,7 @@ def load_config(json_file):
         print("Loading configuration from {}.".format(json_file))
         config = load_json(json_file)
     else:
-        print("Using default configuration.")
+        print("JSON config file not specified (see --help), reverting to interactive mode.")
         config = DEFAULT_CONFIG
     return config
 
@@ -387,21 +387,19 @@ def main():
     global DEBUG
     DEBUG = argv.exists("--debug")
     quiet = argv.exists("--quiet")
-    interactive = argv.exists("--interactive")
     json_in = argv.stringval("--load", default=None)
     json_out = argv.stringval("--save", default=None)
     corners = ["center", "top-left", "top-right", "bottom-left", "bottom-right"]
-    roi = argv.stringval("--roi", default="all", accepted=corners+["all"])
+    roi = argv.stringval("--roi", default="center", accepted=corners+["all"])
     showHelp = argv.exists("--help")
     argv.exitIfAnyUnparsedOptions()
     if showHelp or len(sys.argv) < 2:
         print("Usage: slanted-edge-mtf.py [options] [image.(ppm|png|jpg)]")
         print()
         print("  options:")
-        print("    --interactive                   run in interactive mode; see below")
         print("    --load config.json              load configuration from JSON file")
         print("    --save config.json              save current config to JSON file")
-        print("    --roi all|center|top-left|...   region to analyze; default = all")
+        print("    --roi all|center|top-left|...   region to analyze; default = center")
         print("    --quiet                         silent mode, do not show any graphs")
         print("    --debug                         plot extra graphs for diagnostics")
         print("    --help                          show this help message")
@@ -423,7 +421,7 @@ def main():
         key = "roi-{}".format(corner)  # 'top-left' => 'roi-top-left'
         config[key] = []
 
-    if interactive:
+    if json_in is None:
         selector = ROI_selector(filename)
         for roi_name in selected_rois:
             key = "roi-{}".format(roi_name)  # 'top-left' => 'roi-top-left'
