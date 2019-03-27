@@ -5,7 +5,7 @@ import sys                       # built-in module
 import time                      # built-in module
 import json                      # built-in module
 import pprint                    # built-in module
-import cv2                       # pip install cv2
+import cv2                       # pip install opencv-python
 import imgio                     # pip install imgio
 import numpy as np               # pip install numpy
 import scipy.signal              # pip install scipy
