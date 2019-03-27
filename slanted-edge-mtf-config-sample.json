@@ -1,10 +1,10 @@
 {
   "edge-max-angle": 88,
   "edge-min-angle": 78,
-  "edge-width": 49,
-  "roi-bottom-left": [1400, 2500, 750, 1050],
-  "roi-bottom-right": [1400, 2650, 3050, 3400],
-  "roi-center": [700, 1900, 1600, 1950],
-  "roi-top-left": [200, 1000, 700, 1000],
-  "roi-top-right": [200, 1000, 3000, 3400]
+  "edge-width": 99,
+  "roi-bottom-left": [2369, 2944, 1938, 2182],
+  "roi-bottom-right": [2279, 2960, 2725, 2992],
+  "roi-center": [1055, 1783, 2072, 2418],
+  "roi-top-left": [118, 799, 2272, 2516],
+  "roi-top-right": [170, 748, 3118, 3295]
 }
