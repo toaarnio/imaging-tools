@@ -394,7 +394,7 @@ def main():
     showHelp = argv.exists("--help")
     argv.exitIfAnyUnparsedOptions()
     if showHelp or len(sys.argv) < 2:
-        print("Usage: slanted-edge-mtf.py [options] [image.(ppm|png|jpg)]")
+        print("Usage: slanted-edge-mtf.py [options] image.{ppm|png|jpg}")
         print()
         print("  options:")
         print("    --load config.json              load configuration from JSON file")
