@@ -77,6 +77,7 @@ def mtf(config, results, filename):
 
     # read source image, convert to grayscale, normalize [black, white] = [0, 1]
     basename = os.path.basename(filename)
+    barename = os.path.splitext(basename)[0]
     image = imread(filename)
     imgh, imgw = image.shape
 
@@ -182,9 +183,9 @@ def mtf(config, results, filename):
             if DEBUG:  # plot the unfiltered MTF only in debug mode
                 plot_mtf(res.mtf, res.mtf50, res.mtf20, color=pp.cm.cool(idx / 4), linestyle=":", linewidth=0.5)
 
-    roi_filename = "MTF-{}-ROI.png".format(basename)
-    lsf_filename = "MTF-{}-LSF.png".format(basename)
-    mtf_filename = "MTF-{}-MTF.png".format(basename)
+    roi_filename = "{}-ROI.png".format(barename)
+    lsf_filename = "{}-LSF.png".format(barename)
+    mtf_filename = "{}-MTF.png".format(barename)
     pp.title("MTF - {}".format(basename))
     pp.show(block=False)
     pp.figure("mtf")
