@@ -18,8 +18,8 @@ import argv                      # local import
 DEBUG = False
 
 EDGE_WIDTH = 99
-MIN_ROI_WIDTH = EDGE_WIDTH
-MIN_ROI_HEIGHT = EDGE_WIDTH
+MIN_ROI_WIDTH = 100
+MIN_ROI_HEIGHT = 50
 MIN_ROI_SIZE = (MIN_ROI_HEIGHT, MIN_ROI_WIDTH)
 
 
@@ -86,7 +86,6 @@ def mtf(config, results, filename):
     fig.canvas.set_window_title("slanted-edge-mtf: Selected regions")
     axis.imshow(image)
     pp.title(basename)
-    pp.show(block=False)
 
     for idx, res in enumerate(results):
 
@@ -103,9 +102,10 @@ def mtf(config, results, filename):
         region = image[roi[0]:roi[1], roi[2]:roi[3]]
         roih, roiw = region.shape
         roi_valid = np.all(region.shape > MIN_ROI_SIZE)
-        enforce(roi_valid, "{0}: Selected region must be at least {2} x {1} pixels; was {4} x {3}."
-                .format(prefix, *MIN_ROI_SIZE, *region.shape))
+        err_plotter = lambda: plot_edge([region], suptitle=res.corner)
         axis.add_patch(pp.Rectangle((roi[2], roi[0]), roiw, roih, edgecolor="red", facecolor="none"))
+        enforce(roi_valid, "{0}: Selected region must be at least {2} x {1} pixels; was {4} x {3}."
+                .format(prefix, *MIN_ROI_SIZE, *region.shape), err_plotter)
 
         # detect edge pixels
         otsu_map = otsu(region)                               # generate binary mask: 0=black, 1=white
@@ -113,13 +113,13 @@ def mtf(config, results, filename):
         otsu_edges = canny(otsu_filt)                         # detect edges; there should be only one
         edge_coords = np.nonzero(otsu_edges)                  # get (x, y) coordinates of edge pixels
         edge_y_span = len(np.unique(edge_coords[0]))          # get number of scanlines intersected
-        plot_edge([region, otsu_map, otsu_filt, otsu_edges])  # plot edge images if in debug mode
+        err_plotter = lambda: plot_edge([region, otsu_map, otsu_filt, otsu_edges], suptitle=res.corner)
         enforce(edge_y_span > MIN_ROI_HEIGHT, "{}: Edge must have at least {} scanlines; had {}."
-                .format(prefix, MIN_ROI_HEIGHT, edge_y_span))
+                .format(prefix, MIN_ROI_HEIGHT, edge_y_span), err_plotter)
 
         # fit a straight line through the detected edge
         edge_coeffs = np.polyfit(*reversed(edge_coords), deg=1)
-        plot_edge([region, otsu_map, otsu_filt, otsu_edges], edge_coeffs, "{}".format(res.corner))
+        plot_edge([region, otsu_map, otsu_filt, otsu_edges], edge_coeffs, suptitle=res.corner)
         edge_angle = np.abs(np.rad2deg(np.arctan(edge_coeffs[0])))
         enforce(min_angle < edge_angle < max_angle, "{}: Edge angle must be [{}, {}] degrees; was {:.1f}."
                 .format(prefix, min_angle, max_angle, edge_angle))
@@ -161,9 +161,10 @@ def mtf(config, results, filename):
             # compute Edge Spread Function (ESF), Line Spread Function (LSF), and filtered LSF
             edge = res.edge_straight
             res.esf = esf = np.mean(edge, axis=0)
-            res.lsf = lsf = np.gradient(esf)
-            res.lsfs = lsfs = scipy.signal.wiener(lsf, 7)
-            plot_curves([edge], [esf, lsf, lsfs], ["Edge Profile", "LSF", "Filtered LSF"], res.corner)
+            res.esf = esf = scipy.signal.wiener(esf, 5)[3:-3]
+            res.lsf = lsf = np.gradient(esf)[1:]
+            res.lsfs = lsfs = scipy.signal.wiener(lsf, 7)[4:-4]
+            plot_lsf([edge], [esf, lsf, lsfs], ["Edge Profile", "LSF", "Filtered LSF"], res.corner)
             prompt("Review the {} ESF & LSF curves, then press Enter to continue.".format(res.corner))
             # compute filtered & unfiltered MTF
             res.mtf = mtf = fft(lsf)
@@ -174,7 +175,7 @@ def mtf(config, results, filename):
             res.mtf20 = mtf20 = np.interp(0.2, mtfs[::-1], x_mtf[::-1])
             res.success = True
 
-    pp.close("curves")
+    pp.close("lsf")
 
     for idx, res in enumerate(results):
         if res.success:
@@ -262,7 +263,7 @@ def plot_mtf(mtf, mtf50, mtf20, **kwargs):
     pp.legend()
 
 
-def plot_curves(images, curves, titles, suptitle):
+def plot_lsf(images, curves, titles, suptitle):
     if DEBUG:
         ncols = len(curves) + len(images)
         fig, axes = pp.subplots(num="curves", nrows=1, ncols=ncols, squeeze=False, clear=True, figsize=(17,9), dpi=110)
@@ -276,7 +277,7 @@ def plot_curves(images, curves, titles, suptitle):
         for ax, curve, title in zip(axes, curves, titles):
             ax.grid(which="both", linestyle=":")
             ax.plot(curve * 255)
-            ax.axvline(img.shape[1] / 2, color="red", linewidth=0.7)
+            ax.axvline(curve.shape[0] / 2, color="red", linewidth=0.7)
             ax.set_title(title)
             ax.set_xlabel("pixel")
             ax.set_ylabel("DN")
@@ -314,9 +315,11 @@ def prompt(message):
         input(message)
 
 
-def enforce(expression, message_if_false):
+def enforce(expression, message_if_false, run_if_false=None):
     if not expression:
         print(message_if_false)
+        if run_if_false is not None:
+            run_if_false()
         prompt("Processing failed. Press Enter to quit...")
         sys.exit(1)
 
