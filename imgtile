@@ -18,34 +18,42 @@ def parse_args():
     config.outfile = argv.stringval("--out", default=None)
     config.collage = argv.intpair("--collage", default=None)
     config.mosaic = argv.intpair("--mosaic", default=None)
+    config.interleave = argv.intval("--interleave", default=None)
     config.transpose = argv.exists("--transpose")
     config.downsample = argv.intval("--downsample", default=0, accepted=[0, 1, 2, 3])
-    config.shape = config.collage or config.mosaic
+    config.shape = config.collage or config.mosaic or config.interleave
     show_help = argv.exists("--help")
     show_help = show_help or not config.shape
     if show_help:
         print(f"Usage: {toolname} [options] img00 ...")
         print()
         print(f"options:")
-        print(f"  --collage W H    assemble a collage of W x H full-size images")
-        print(f"  --mosaic W H     assemble cropped tiles into a composite image")
-        print(f"  --transpose      collect input images in transposed sorted order")
-        print(f"  --downsample N   downsample the final image by a factor of 2^N")
-        print(f"  --out filename   output filename; default = [collage|mosaic].jpg")
+        print(f"  --collage W H      assemble a collage of W x H full-size images")
+        print(f"  --mosaic W H       assemble W x H cropped tiles into a composite image")
+        print(f"  --interleave N     take a slice of each image in turn, N slices total")
+        print(f"  --transpose        collect input images in transposed sorted order")
+        print(f"  --downsample N     downsample the final image by a factor of 2^N")
+        print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].jpg")
         print()
-        print(f"  Either '--collage' or '--mosaic' must be given.")
+        print(f"  One of '--collage|mosaic|interleave' must be given.")
         print()
         print(f"  Combines the given set of W * H images into a single image, either by")
-        print(f"  concatenating them into a collage or by cropping and tiling them into")
-        print(f"  a mosaic. All images must have the same width and height, except for")
-        print(f"  1 x H and W x 1 collages, where only one of the dimensions must match.")
+        print(f"  concatenating them into a collage; by cropping and tiling them into")
+        print(f"  a mosaic; or by taking a total of N slices from each image in turn.")
+        print(f"  All images must have the same width and height, except for 1 x H and")
+        print(f"  W x 1 collages, where only one of the dimensions must match.")
+        print()
+        print(f"examples:")
+        print(f"  {toolname} --collage 4 2 --downsample 2 image*.jpg")
+        print(f"  {toolname} --mosaic 3 3 --transpose image*.jpg")
+        print(f"  {toolname} --interleave 32 --transpose gt.png test.png")
         print()
         sys.exit(-1)
     else:
         print(f"See '{toolname} --help' for command-line options.")
-        config.shape = config.shape[::-1]
-        config.num_tiles = config.shape[0] * config.shape[1]
         img_files = argv.filenames(sys.argv[1:])[0]
+        config.shape = (1, len(img_files)) if config.interleave else config.shape[::-1]
+        config.num_tiles = config.shape[0] * config.shape[1]
         if len(img_files) != config.num_tiles:
             print(f"Expecting precisely {config.num_tiles} images, got {len(img_files)}. Terminating.")
             sys.exit(-1)
@@ -72,6 +80,31 @@ def _enforce_dims(gridw, gridh, widths, heights):
     else:  # generic case
         assert np.all(widths == w), f"{widths} != {w}"
         assert np.all(heights == h), f"{heights} != {h}"
+
+
+def interleave(config):
+    infos = [imsize.read(f) for f in config.filespecs]
+    widths = [info.width for info in infos]
+    heights = [info.height for info in infos]
+    _enforce_dims(None, None, widths, heights)
+    img, maxval = imgio.imread(config.filespecs[0])
+    order = (1, 0, 2) if config.transpose else (0, 1, 2)
+    img = np.atleast_3d(img).transpose(order)
+    h, w, ch = img.shape
+    s = config.interleave
+    assert h % s == 0, f"image height {h} is not evenly divisible by {s}"
+    result = np.zeros((s, h // s, w, ch), dtype=img.dtype)
+    stride = len(config.filespecs)
+    for i, fspec in enumerate(config.filespecs):
+        img, maxval = imgio.imread(fspec, verbose=True)
+        img = np.atleast_3d(img).transpose(order)
+        img = img.reshape(result.shape)
+        result[i::stride] = img[i::stride]
+    result = result.reshape(h, w, ch).transpose(order)
+    factor = int(2 ** config.downsample)
+    result = rawpipe.resize(result, w // factor, h // factor)
+    outfile = config.outfile or "interleaved.jpg"
+    imgio.imwrite(outfile, result, maxval, verbose=True)
 
 
 def collage(config):
@@ -126,8 +159,10 @@ def main():
         config = parse_args()
         if config.collage:
             collage(config)
-        else:
+        elif config.mosaic:
             mosaic(config)
+        elif config.interleave:
+            interleave(config)
 
 
 if __name__ == "__main__":
