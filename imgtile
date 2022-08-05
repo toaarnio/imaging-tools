@@ -52,19 +52,23 @@ def parse_args():
     else:
         print(f"See '{toolname} --help' for command-line options.")
         img_files = argv.filenames(sys.argv[1:])[0]
+        img_files = natsort.natsorted(img_files)
         config.shape = (1, len(img_files)) if config.interleave else config.shape[::-1]
         config.num_tiles = config.shape[0] * config.shape[1]
-        if len(img_files) != config.num_tiles:
+        config.num_blanks = config.num_tiles - len(img_files)
+        if config.num_blanks < 0:
             print(f"Expecting precisely {config.num_tiles} images, got {len(img_files)}. Terminating.")
             sys.exit(-1)
-        imgfiles = natsort.natsorted(img_files)
+        elif config.num_blanks > 0:
+            print(f"Expecting precisely {config.num_tiles} images, got {len(img_files)}. Filling with blanks.")
+            img_files += ["Dummy"] * config.num_blanks
         if config.transpose:
-            imgfiles = np.array(imgfiles)
-            imgfiles = imgfiles.reshape(config.shape[::-1])
-            imgfiles = imgfiles.T.flatten().tolist()
-        config.filespecs = imgfiles
+            img_files = np.array(img_files)
+            img_files = img_files.reshape(config.shape[::-1])
+            img_files = img_files.T.flatten().tolist()
+        config.filespecs = img_files
         print("Configuration:")
-        pprint.pprint(vars(config))
+        pprint.pp(vars(config))
         return config
 
 
@@ -110,8 +114,10 @@ def interleave(config):
 def collage(config):
     gridh, gridw = config.shape
     infos = [imsize.read(f) for f in config.filespecs]
-    widths = [info.width for info in infos]
-    heights = [info.height for info in infos]
+    widths = [info.width for info in infos if info is not None]
+    heights = [info.height for info in infos if info is not None]
+    widths += [widths[-1]] * config.num_blanks
+    heights += [heights[-1]] * config.num_blanks
     _enforce_dims(gridw, gridh, widths, heights)
     grid_x = np.cumsum([0] + widths)
     grid_y = np.cumsum([0] + heights)
@@ -119,7 +125,8 @@ def collage(config):
     fullh = grid_y[gridh]
     img, maxval = imgio.imread(config.filespecs[0], verbose=False)
     result = np.zeros((fullh, fullw, 3), dtype=img.dtype)
-    for i, fspec in enumerate(config.filespecs):
+    num_valid = len(config.filespecs) - config.num_blanks
+    for i, fspec in enumerate(config.filespecs[:num_valid]):
         img, maxval = imgio.imread(fspec, verbose=True)
         img = np.atleast_3d(img)
         img = img[..., :3]  # drop alpha channel
@@ -141,7 +148,8 @@ def mosaic(config):
     h, w = img.shape[:2]
     x_split = w // config.shape[1]
     y_split = h // config.shape[0]
-    for i, fspec in enumerate(config.filespecs):
+    num_valid = len(config.filespecs) - config.num_blanks
+    for i, fspec in enumerate(config.filespecs[:num_valid]):
         img, maxval = imgio.imread(fspec, verbose=True)
         img = np.atleast_3d(img)
         iy, ix = np.unravel_index(i, config.shape)
