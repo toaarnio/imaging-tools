@@ -20,6 +20,7 @@ def parse_args():
     config.mosaic = argv.intpair("--mosaic", default=None)
     config.interleave = argv.intval("--interleave", default=None)
     config.transpose = argv.exists("--transpose")
+    config.unsorted = argv.exists("--unsorted")
     config.downsample = argv.intval("--downsample", default=0, accepted=[0, 1, 2, 3])
     config.shape = config.collage or config.mosaic or config.interleave
     show_help = argv.exists("--help")
@@ -32,6 +33,7 @@ def parse_args():
         print(f"  --mosaic W H       assemble W x H cropped tiles into a composite image")
         print(f"  --interleave N     take a slice of each image in turn, N slices total")
         print(f"  --transpose        collect input images in transposed sorted order")
+        print(f"  --unsorted         take files in command-line order, do not sort")
         print(f"  --downsample N     downsample the final image by a factor of 2^N")
         print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].jpg")
         print()
@@ -52,7 +54,8 @@ def parse_args():
     else:
         print(f"See '{toolname} --help' for command-line options.")
         img_files = argv.filenames(sys.argv[1:])[0]
-        img_files = natsort.natsorted(img_files)
+        if not config.unsorted:
+            img_files = natsort.natsorted(img_files)
         config.shape = (1, len(img_files)) if config.interleave else config.shape[::-1]
         config.num_tiles = config.shape[0] * config.shape[1]
         config.num_blanks = config.num_tiles - len(img_files)
