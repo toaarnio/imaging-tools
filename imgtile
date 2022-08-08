@@ -127,7 +127,7 @@ def collage(config):
     fullw = grid_x[gridw]
     fullh = grid_y[gridh]
     img, maxval = imgio.imread(config.filespecs[0], verbose=False)
-    result = np.zeros((fullh, fullw, 3), dtype=img.dtype)
+    result = np.ones((fullh, fullw, 3), dtype=img.dtype) * maxval
     num_valid = len(config.filespecs) - config.num_blanks
     for i, fspec in enumerate(config.filespecs[:num_valid]):
         img, maxval = imgio.imread(fspec, verbose=True)
