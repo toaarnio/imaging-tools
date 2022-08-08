@@ -49,7 +49,7 @@ def filenames(patterns, extensions=None, sort=False, allowAllCaps=False, numRequ
     """
     fullnames = [glob.glob(filepattern, recursive=True) for filepattern in patterns]  # expand wildcards
     fullnames = [item for sublist in fullnames for item in sublist]                 # flatten nested lists
-    fullnames = [f for f in set(fullnames) if os.path.isfile(f)]                    # check file existence
+    fullnames = [f for f in fullnames if os.path.isfile(f)]                         # check file existence
     if extensions is not None:
         extensions += [e.upper() for e in extensions] if allowAllCaps else []       # jpg => [jpg, JPG]
         fullnames = [f for f in fullnames if os.path.splitext(f)[1] in extensions]  # filter by extension
