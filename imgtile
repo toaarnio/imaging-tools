@@ -4,6 +4,9 @@ import os                           # built-in module
 import sys                          # built-in module
 import pprint                       # built-in module
 from types import SimpleNamespace   # built-in module
+import PIL.Image                    # pip install pillow
+import PIL.ImageDraw                # pip install pillow
+import PIL.ImageFont                # pip install pillow
 import numpy as np                  # pip install numpy
 import natsort                      # pip install natsort
 import rawpipe                      # pip install rawpipe
@@ -22,6 +25,7 @@ def parse_args():
     config.transpose = argv.exists("--transpose")
     config.unsorted = argv.exists("--unsorted")
     config.downsample = argv.intval("--downsample", default=0, accepted=[0, 1, 2, 3])
+    config.labels = argv.intval("--labels", default=0)
     config.shape = config.collage or config.mosaic or config.interleave
     show_help = argv.exists("--help")
     show_help = show_help or not config.shape
@@ -35,6 +39,7 @@ def parse_args():
         print(f"  --transpose        collect input images in transposed sorted order")
         print(f"  --unsorted         take files in command-line order, do not sort")
         print(f"  --downsample N     downsample the final image by a factor of 2^N")
+        print(f"  --labels S         overlay filenames on output image, font size = S pixels")
         print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].jpg")
         print()
         print(f"  One of '--collage|mosaic|interleave' must be given.")
@@ -89,6 +94,12 @@ def _enforce_dims(gridw, gridh, widths, heights):
         assert np.all(heights == h), f"{heights} != {h}"
 
 
+def basename(filespec):
+    with_ext = os.path.basename(filespec)
+    without_ext = os.path.splitext(with_ext)[0]
+    return without_ext
+
+
 def interleave(config):
     infos = [imsize.read(f) for f in config.filespecs]
     widths = [info.width for info in infos]
@@ -107,6 +118,7 @@ def interleave(config):
         img = np.atleast_3d(img).transpose(order)
         img = img.reshape(result.shape)
         result[i::stride] = img[i::stride]
+        result[i] = text(config, img[i], basename(fspec))
     result = result.reshape(h, w, ch).transpose(order)
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
@@ -137,7 +149,7 @@ def collage(config):
         iy, ix = np.unravel_index(i, config.shape)
         xstart = grid_x[ix]
         ystart = grid_y[iy]
-        result[ystart:ystart + h, xstart:xstart + w] = img
+        result[ystart:ystart + h, xstart:xstart + w] = text(config, img, basename(fspec))
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, fullw // factor, fullh // factor)
     outfile = config.outfile or "collage.jpg"
@@ -158,11 +170,31 @@ def mosaic(config):
         iy, ix = np.unravel_index(i, config.shape)
         ystart = iy * y_split
         xstart = ix * x_split
-        result[ystart:, xstart:] = img[ystart:, xstart:]
+        result[ystart:, xstart:] = text(config, img[ystart:, xstart:], basename(fspec))
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
     outfile = config.outfile or "mosaic.jpg"
     imgio.imwrite(outfile, result, maxval, verbose=True)
+
+
+def text(config, img, string):
+    if config.labels:
+        dt = img.dtype
+        maxval = 255 if img.dtype == np.uint8 else 65535
+        h, w = img.shape[:2]
+        fontsize = config.labels
+        font = PIL.ImageFont.truetype("Tests/fonts/NotoSans-Regular.ttf", fontsize)
+        fontw, fonth = font.getsize("gt")
+        txt = PIL.Image.new("RGBA", (w, h), (255, 255, 255, 0))
+        d = PIL.ImageDraw.Draw(txt)
+        d.text((2, -fonth / 4), string, anchor="la", font=font)
+        txt = np.array(txt).astype(float) / 255.0
+        img = img.astype(float) / maxval
+        alpha = txt[..., [3]]
+        glyphs = txt[..., :3]
+        img = img * (1 - alpha) + glyphs * alpha
+        img = np.rint(img * maxval).astype(dt)
+    return img
 
 
 def main():
