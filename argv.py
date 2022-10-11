@@ -90,16 +90,16 @@ def intval(argname, default=None, accepted=None, condition=None, repeats=False):
     else:
         argSet = set()
         argstr = _string(argname)
-        if argstr is None:
-            argSet = argSet.union([default])
         while argstr is not None:
             errmsg = f"Invalid value for '{argname}': '{argstr}' does not represent an integer."
             _enforce(_isInt(argstr), errmsg)
             argval = int(argstr, 0)  # hex values must have the "0x" prefix for this to work
             if not _isValid(argname, argval, accepted, condition):
                 sys.exit(-1)
-            argSet = argSet.union([argval])
+            argSet |= {argval}
             argstr = _string(argname)
+        if not argSet and default is not None:
+            argSet = {default}
         return argSet
 
 
@@ -134,13 +134,13 @@ def stringval(argname, default=None, accepted=None, condition=None, repeats=Fals
     else:
         argSet = set()
         argstr = _string(argname)
-        if argstr is None:
-            argSet |= set([default])
         while argstr is not None:
             if not _isValid(argname, argstr, accepted, condition):
                 sys.exit(-1)
-            argSet = argSet.union([argstr])
+            argSet |= {argstr}
             argstr = _string(argname)
+        if not argSet and default is not None:
+            argSet = {default}
         return argSet
 
 
@@ -157,11 +157,11 @@ def intpair(argname, default=None, repeats=False):
     else:
         pairSet = set()
         pair = _intpair(argname)
-        if pair is None:
-            pairSet |= set([default])
         while pair is not None:
             pairSet |= set([pair])
             pair = _intpair(argname)
+        if not pairSet and default is not None:
+            pairSet = {default}
         return pairSet
 
 
@@ -176,8 +176,8 @@ def floatpair(argname, default=None):
             val1 = sys.argv[argidx + 1]
             val2 = sys.argv[argidx + 2]
             del sys.argv[argidx:argidx + 3]
-            _enforce(_isInt(val1), f"Invalid value for '{argname}': '{val1}' does not represent a decimal number")
-            _enforce(_isInt(val2), f"Invalid value for '{argname}': '{val2}' does not represent a decimal number.")
+            _enforce(_isFloat(val1), f"Invalid value for '{argname}': '{val1}' does not represent a decimal number")
+            _enforce(_isFloat(val2), f"Invalid value for '{argname}': '{val2}' does not represent a decimal number.")
             val1 = float(val1)
             val2 = float(val2)
             return [val1, val2]
@@ -320,6 +320,8 @@ class _Tests(unittest.TestCase):
         self.assertEqual(intval("--baz"), 254)
         self.assertEqual(intval("--bar", accepted=[3, 4, 5]), 4)
         self.assertEqual(exists("--foo"), False)
+        self.assertEqual(intval("--nonexisting", repeats=True), set())
+        self.assertEqual(intval("--nonexisting", default=3, repeats=True), {3})
         exitIfAnyUnparsedOptions()
 
     def test_floatval(self):
@@ -328,6 +330,8 @@ class _Tests(unittest.TestCase):
         self.assertEqual(floatval("--foo"), 2.0)
         self.assertEqual(floatval("--bar", condition='v >= 0.2'), 0.3)
         self.assertEqual(exists("--foo"), False)
+        self.assertEqual(floatval("--nonexisting", repeats=True), set())
+        self.assertEqual(floatval("--nonexisting", default=3.141, repeats=True), {3.141})
         exitIfAnyUnparsedOptions()
 
     def test_stringval(self):
@@ -342,6 +346,8 @@ class _Tests(unittest.TestCase):
         print("Testing argv.stringval(repeats=True)...")
         sys.argv = ["--repeated", "foo", "--repeated", "bar", "--repeated", "baz"]
         self.assertEqual(stringval("--repeated", repeats=True), set(("foo", "bar", "baz")))
+        self.assertEqual(stringval("--nonexisting", repeats=True), set())
+        self.assertEqual(stringval("--nonexisting", default="foo", repeats=True), {"foo"})
         exitIfAnyUnparsedOptions()
 
     def test_intpair(self):
@@ -352,6 +358,14 @@ class _Tests(unittest.TestCase):
         sys.argv = ["--repeated", "-1", "1", "--repeated", "10", "20"]
         self.assertEqual(intpair("--repeated", repeats=True), set([(-1, 1), (10, 20)]))
         self.assertEqual(intpair("--repeated", default=(2, 1), repeats=True), set([(2, 1)]))
+        self.assertEqual(intpair("--nonexisting", repeats=True), set())
+        self.assertEqual(intpair("--nonexisting", default=(2, 3), repeats=True), {(2, 3)})
+
+    def test_floatpair(self):
+        print("Testing argv.floatpair()...")
+        sys.argv = ["--foo", "-1.2", "2.1"]
+        self.assertEqual(floatpair("--foo"), [-1.2, 2.1])
+        self.assertEqual(intpair("--foo", default=[0.1, -1.5]), [0.1, -1.5])
 
     def test_missing_values(self):
         print("Testing missing argument values...")
@@ -363,8 +377,6 @@ class _Tests(unittest.TestCase):
         self.assertRaises(SystemExit, lambda: intpair("--foo"))
         sys.argv = ["--foo", "2", "2.1"]
         self.assertRaises(SystemExit, lambda: intpair("--foo"))
-        sys.argv = ["--foo", "3.1", "3.2"]
-        self.assertRaises(SystemExit, lambda: floatpair("--foo"))
         sys.argv = ["--foo"]
         self.assertRaises(SystemExit, lambda: stringval("--foo", accepted=["bar"]))
 
