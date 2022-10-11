@@ -1,7 +1,7 @@
 #!/usr/bin/env -S python3 -B
 
 """
-A collection of simple command-line parsing functions.
+A collection of simple command-line parsing & config file handling functions.
 
 Copyright (c) 2018 Tomi Aarnio. MIT License.
 
@@ -29,13 +29,81 @@ import sys                        # standard library
 import re                         # standard library # pylint: disable=unused-import # noqa
 import glob                       # standard library
 import unittest                   # standard library
+import toml                       # pip install toml
+import mergedeep                  # pip install mergedeep
+import dotwiz                     # pip install dotwiz
 
 # pylint: disable=invalid-name
 
 
 ######################################################################################
 #
-#  P U B L I C   A P I
+#  C O N F I G   F I L E   H A N D L I N G
+#
+######################################################################################
+
+
+class Config(dotwiz.DotWiz):
+    """
+    Dictionary-like storage for config options, with support for TOML config files
+    and convenient merging.
+
+    Example:
+      defaults = Config()
+      defaults.foo = "bar"
+      defaults.items = ["foo", "bar"]
+      args = Config()
+      args.items = argv.stringval("--items", repeats=True)
+      config = defaults.merge(args)  # 'args' takes precedence
+    """
+    @classmethod
+    def load(cls, filename):
+        """
+        Create a new Config instance and populate it from the given TOML file.
+        """
+        if os.path.isfile(filename):
+            with open(filename, "r") as f:
+                loaded = toml.load(f)
+                instance = cls(**loaded)
+                return instance
+        else:
+            print(f"Config file '{filename}' does not exist. Terminating.")
+            sys.exit(-1)
+
+    def merge(self, other):
+        """
+        Merge this config with the given config. In case of conflicting keys, the other
+        config takes priority.
+
+        Arguments:
+          - other: dictionary to merge with self
+
+        Returns:
+          - copy of self with the contents of 'other' merged in
+        """
+        merged = mergedeep.merge({}, self, other, strategy=mergedeep.Strategy.REPLACE)
+        merged = self.__class__(**merged)
+        return merged
+
+    def cleanup(self):
+        """
+        Iterate over dictionary items and drop those that are empty or None.
+
+        Returns:
+          - cleaned-up copy of self
+        """
+        cleaned = {}
+        for key, value in self.items():
+            if value == [] or value == set() or value is None:
+                continue
+            cleaned[key] = value
+        cleaned = self.__class__(**cleaned)
+        return cleaned
+
+
+######################################################################################
+#
+#  C O M M A N D - L I N E   P A R S I N G
 #
 ######################################################################################
 
@@ -397,6 +465,20 @@ class _Tests(unittest.TestCase):
         self.assertRaises(SystemExit, lambda: stringval("--str1", accepted=["foo", "bar"]))
         self.assertRaises(SystemExit, lambda: stringval("--str2", condition="len(v) > 4"))
         exitIfAnyUnparsedOptions()
+
+    def test_config(self):
+        print("Testing argv.Config...")
+        config = Config()
+        config.foo = "bar"
+        config.bar = ["baz", "bae"]
+        config.empty = []
+        config2 = Config(bar=["foo"])
+        merged = config.merge(config2)
+        self.assertEqual(merged.foo, "bar")
+        self.assertEqual(merged.bar, ["foo"])
+        self.assertEqual(config.bar, ["baz", "bae"])
+        self.assertEqual(config2.bar, ["foo"])
+        self.assertTrue("empty" not in config.cleanup())
 
 
 def __main():
