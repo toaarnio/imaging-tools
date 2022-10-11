@@ -171,19 +171,34 @@ def intval(argname, default=None, accepted=None, condition=None, repeats=False):
         return argSet
 
 
-def floatval(argname, default=None, accepted=None, condition=None):
+def floatval(argname, default=None, accepted=None, condition=None, repeats=False):
     """
     Example:
       factor = argv.floatval("--factor", 1.0, condition='1.0 <= v <= 3.0')
     """
-    argstr = _string(argname)
-    useDefault = argstr is None
-    if not useDefault:
-        errmsg = f"Invalid value for '{argname}': '{argstr}' does not represent a number."
-        _enforce(_isFloat(argstr), errmsg)
-        if not _isValid(argname, float(argstr), accepted, condition):
-            sys.exit(-1)
-    return default if useDefault else float(argstr)
+    if not repeats:
+        argstr = _string(argname)
+        useDefault = argstr is None
+        if not useDefault:
+            errmsg = f"Invalid value for '{argname}': '{argstr}' does not represent a number."
+            _enforce(_isFloat(argstr), errmsg)
+            if not _isValid(argname, float(argstr), accepted, condition):
+                sys.exit(-1)
+        return default if useDefault else float(argstr)
+    else:
+        argSet = set()
+        argstr = _string(argname)
+        while argstr is not None:
+            errmsg = f"Invalid value for '{argname}': '{argstr}' does not represent a number."
+            _enforce(_isFloat(argstr), errmsg)
+            argval = float(argstr)
+            if not _isValid(argname, argval, accepted, condition):
+                sys.exit(-1)
+            argSet |= {argval}
+            argstr = _string(argname)
+        if not argSet and default is not None:
+            argSet = {default}
+        return argSet
 
 
 def stringval(argname, default=None, accepted=None, condition=None, repeats=False):
