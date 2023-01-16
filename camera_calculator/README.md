@@ -47,7 +47,7 @@ python .\cameracalc.py -h
 
 ## Example of calculations
 
-Lets calculate camera module parameters with following data:
+Let's calculate camera module parameters with the following data:
 * Sensor resolution: 16 Megapixels
 * Sensor size: 1/2.3"
 * Focal length: 3.8 mm

@@ -499,23 +499,7 @@ class Calculation:
         i_d = np.delete(i_d, 0)
         idof_n = np.delete(idof_n, 0)
         idof_f = np.delete(idof_f, 0)
-        # return (
-        #     infl,
-        #     hypl,
-        #     cm200l,
-        #     cm150l,
-        #     cm120l,
-        #     cm100l,
-        #     cm70l,
-        #     cm50l,
-        #     cm40l,
-        #     cm20l,
-        #     cm10l,
-        #     od,
-        #     id,
-        #     idof_n,
-        #     idof_f,
-        # )
+
         optics_values = {
             'lens_value_at_inf': infl,
             'lens_value_at_hyp': hypl,
@@ -1065,7 +1049,7 @@ def main():
     if args.crop:
         camera_data.crop_resolution = (
             args.crop
-        )  # camera_data.image_formats.get(args.crop)
+        )
         crop_resolution_in_pixels = camera_data.get_crop_resolution_in_pixels()
         print(f'Target crop: {args.crop}, {crop_resolution_in_pixels} pixels')
 
@@ -1174,23 +1158,6 @@ def main():
         f'{main_image_dists.get("image_distance_1_meter"):.3f} mm'
     )
 
-    # (
-    #     linf,
-    #     lhyp,
-    #     l200cm,
-    #     l150cm,
-    #     l120cm,
-    #     l100cm,
-    #     l70cm,
-    #     l50cm,
-    #     l40cm,
-    #     l20cm,
-    #     l10cm,
-    #     o_d,
-    #     i_d,
-    #     idof_n,
-    #     idof_f,
-    # ) = calc.get_optics_values(hyperfocal)
     optics_values = calc.get_optics_values(hyperfocal)
     print(f'Lens value at FAR: {camera_data.lens_position_at_far}')
     print(f'Lens value at INFINITY: {optics_values.get("lens_value_at_inf")}')
