@@ -40,7 +40,7 @@ def parse_args():
         print(f"  --unsorted         take files in command-line order, do not sort")
         print(f"  --downsample N     downsample the final image by a factor of 2^N")
         print(f"  --labels S         overlay filenames on output image, font size = S pixels")
-        print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].jpg")
+        print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].png")
         print()
         print(f"  One of '--collage|mosaic|interleave' must be given.")
         print()
@@ -130,7 +130,7 @@ def interleave(config):
     result = result.reshape(h, w, ch).transpose(order)
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
-    outfile = config.outfile or "interleaved.jpg"
+    outfile = config.outfile or "interleaved.png"
     imgio.imwrite(outfile, result, maxval, verbose=True)
 
 
@@ -161,8 +161,8 @@ def collage(config):
         result[slot] = text(config, img, basename(fspec))
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, fullw // factor, fullh // factor)
-    outfile = config.outfile or "collage.jpg"
-    imgio.imwrite(outfile, result, maxval, verbose=True)
+    outfile = config.outfile or "collage.png"
+    imgio.imwrite(outfile, result, maxval=maxval, verbose=True)
 
 
 def mosaic(config):
@@ -182,7 +182,7 @@ def mosaic(config):
         result[ystart:, xstart:] = text(config, img[ystart:, xstart:], basename(fspec))
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
-    outfile = config.outfile or "mosaic.jpg"
+    outfile = config.outfile or "mosaic.png"
     imgio.imwrite(outfile, result, maxval, verbose=True)
 
 
