@@ -35,7 +35,7 @@ def parse_args():
         print(f"options:")
         print(f"  --collage W H      assemble a collage of W x H full-size images")
         print(f"  --mosaic W H       assemble W x H cropped tiles into a composite image")
-        print(f"  --interleave N     take a slice of each image in turn, N slices total")
+        print(f"  --interleave N     take horizontal slices of each image, N slices total")
         print(f"  --transpose        collect input images in transposed sorted order")
         print(f"  --unsorted         take files in command-line order, do not sort")
         print(f"  --downsample N     downsample the final image by a factor of 2^N")
@@ -110,11 +110,19 @@ def interleave(config):
     img = np.atleast_3d(img).transpose(order)
     h, w, ch = img.shape
     s = config.interleave
+    if s > h:
+        img = np.repeat(img, repeats=(s // h), axis=0)
+        img = np.repeat(img, repeats=(s // h), axis=1)
+        h, w, ch = img.shape
     assert h % s == 0, f"image height {h} is not evenly divisible by {s}"
     result = np.zeros((s, h // s, w, ch), dtype=img.dtype)
     stride = len(config.filespecs)
     for i, fspec in enumerate(config.filespecs):
         img, maxval = imgio.imread(fspec, verbose=True)
+        repeats = h // img.shape[0]
+        if h > 1:
+            img = np.repeat(img, repeats=repeats, axis=0)
+            img = np.repeat(img, repeats=repeats, axis=1)
         img = np.atleast_3d(img).transpose(order)
         img = img.reshape(result.shape)
         result[i::stride] = img[i::stride]
@@ -149,7 +157,8 @@ def collage(config):
         iy, ix = np.unravel_index(i, config.shape)
         xstart = grid_x[ix]
         ystart = grid_y[iy]
-        result[ystart:ystart + h, xstart:xstart + w] = text(config, img, basename(fspec))
+        slot = np.s_[ystart:ystart + h, xstart:xstart + w]
+        result[slot] = text(config, img, basename(fspec))
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, fullw // factor, fullh // factor)
     outfile = config.outfile or "collage.jpg"
