@@ -194,14 +194,14 @@ def text(config, img, string):
         maxval = 255 if img.dtype == np.uint8 else 65535
         h, w = img.shape[:2]
         fontsize = config.labels
-        font = PIL.ImageFont.truetype("Tests/fonts/NotoSans-Regular.ttf", fontsize)
+        font = PIL.ImageFont.truetype("FreeSansBold.ttf", fontsize)
         fontw, fonth = font.getsize("gt")
         if fontw > w or fonth > h:
             print(f"Font size {fontw} x {fonth} is larger than the target region ({w} x {h}); not adding a label.")
             return img
         txt = PIL.Image.new("RGBA", (w, h), (255, 255, 255, 0))
         d = PIL.ImageDraw.Draw(txt)
-        d.text((2, -fonth / 4), string, anchor="la", font=font)
+        d.text((2, 2), string, anchor="lt", font=font)
         txt = np.array(txt).astype(float) / 255.0
         img = img.astype(float) / maxval
         alpha = txt[..., [3]]
