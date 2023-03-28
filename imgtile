@@ -27,6 +27,7 @@ def parse_args():
     config.unsorted = argv.exists("--unsorted")
     config.downsample = argv.intval("--downsample", default=0, accepted=[0, 1, 2, 3])
     config.labels = argv.intval("--labels", default=0, condition="v >= 10")
+    config.eightbit = argv.exists("--8-bit")
     config.shape = config.collage or config.mosaic or config.interleave
     show_help = argv.exists("--help")
     show_help = show_help or not config.shape
@@ -41,6 +42,7 @@ def parse_args():
         print(f"  --unsorted         take files in command-line order, do not sort")
         print(f"  --downsample N     downsample the final image by a factor of 2^N")
         print(f"  --labels S         overlay filenames on output image, font size = S pixels")
+        print(f"  --8-bit            use 8-bit colors even if the output format supports more")
         print(f"  --out filename     output filename; default = [collage|mosaic|interleaved].png")
         print()
         print(f"  One of '--collage|mosaic|interleave' must be given.")
@@ -101,6 +103,13 @@ def basename(filespec):
     return without_ext
 
 
+def write(config, outfile, img, maxval):
+    if config.eightbit and maxval > 255:
+        img = rawpipe.quantize8(img / maxval)
+        maxval = 255
+    imgio.imwrite(outfile, img, maxval, verbose=True)
+
+
 def interleave(config):
     infos = [imsize.read(f) for f in config.filespecs]
     widths = [info.width for info in infos]
@@ -133,7 +142,7 @@ def interleave(config):
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
     outfile = config.outfile or "interleaved.png"
-    imgio.imwrite(outfile, result, maxval, verbose=True)
+    write(config, outfile, result, maxval)
 
 
 def collage(config):
@@ -164,7 +173,7 @@ def collage(config):
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, fullw // factor, fullh // factor)
     outfile = config.outfile or "collage.png"
-    imgio.imwrite(outfile, result, maxval=maxval, verbose=True)
+    write(config, outfile, result, maxval)
 
 
 def mosaic(config):
@@ -185,7 +194,7 @@ def mosaic(config):
     factor = int(2 ** config.downsample)
     result = rawpipe.resize(result, w // factor, h // factor)
     outfile = config.outfile or "mosaic.png"
-    imgio.imwrite(outfile, result, maxval, verbose=True)
+    write(config, outfile, result, maxval)
 
 
 def text(config, img, string):
