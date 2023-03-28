@@ -9,6 +9,7 @@ import PIL.ImageDraw                # pip install pillow
 import PIL.ImageFont                # pip install pillow
 import numpy as np                  # pip install numpy
 import natsort                      # pip install natsort
+import primefac                     # pip install primefac
 import rawpipe                      # pip install rawpipe
 import imsize                       # pip install imsize
 import imgio                        # pip install imgio
@@ -114,7 +115,8 @@ def interleave(config):
         img = np.repeat(img, repeats=(s // h), axis=0)
         img = np.repeat(img, repeats=(s // h), axis=1)
         h, w, ch = img.shape
-    assert h % s == 0, f"image height {h} is not evenly divisible by {s}"
+    primes = list(primefac.primefac(h))
+    assert h % s == 0, f"image height {h} is not evenly divisible by {s}; prime factors = {primes}"
     result = np.zeros((s, h // s, w, ch), dtype=img.dtype)
     stride = len(config.filespecs)
     for i, fspec in enumerate(config.filespecs):
