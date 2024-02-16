@@ -111,7 +111,8 @@ def write(config, outfile, img, maxval):
 
 
 def interleave(config):
-    infos = [imsize.read(f) for f in config.filespecs]
+    num_valid = len(config.filespecs) - config.num_blanks
+    infos = [imsize.read(f) for f in config.filespecs[:num_valid]]
     widths = [info.width for info in infos]
     heights = [info.height for info in infos]
     _enforce_dims(None, None, widths, heights)
@@ -147,7 +148,8 @@ def interleave(config):
 
 def collage(config):
     gridh, gridw = config.shape
-    infos = [imsize.read(f) for f in config.filespecs]
+    num_valid = len(config.filespecs) - config.num_blanks
+    infos = [imsize.read(f) for f in config.filespecs[:num_valid]]
     widths = [info.width for info in infos if info is not None]
     heights = [info.height for info in infos if info is not None]
     widths += [widths[-1]] * config.num_blanks
@@ -159,7 +161,7 @@ def collage(config):
     fullh = grid_y[gridh]
     img, maxval = imgio.imread(config.filespecs[0], verbose=False)
     result = np.ones((fullh, fullw, 3), dtype=img.dtype) * maxval
-    num_valid = len(config.filespecs) - config.num_blanks
+    print("\nGenerating a collage with the following images in row-major order:")
     for i, fspec in enumerate(config.filespecs[:num_valid]):
         img, maxval = imgio.imread(fspec, verbose=True)
         img = np.atleast_3d(img)
